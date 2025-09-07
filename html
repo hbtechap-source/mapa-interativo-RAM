@@ -1,0 +1,339 @@
+ patrulha_equipe.html
+  Aplicação para equipes (1º, 2º, 4º e 6º BPM)
+  Contém tela de login (usuário/senha) — autenticação DESATIVADA por enquanto:
+  ao clicar em "Entrar" o app abre sem validação (apenas proceed).
+  Formulário com opção de Ficha / Relatório, captura de geolocalização e envio via fetch()
+  Substitua SCRIPT_URL pelo endpoint do seu Apps Script (Web App).
+-->
+
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Equipe — Patrulha Maria da Penha</title>
+  <style>
+    :root{
+      --primary:#2b6cb0;
+      --muted:#666;
+      --bg:#f4f6f9;
+      --card:#ffffff;
+      font-family: "Segoe UI", Roboto, system-ui, -apple-system, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:#222}
+    .center{max-width:1100px;margin:1.5rem auto;padding:1rem}
+    .card{background:var(--card);border-radius:10px;padding:1rem;box-shadow:0 6px 20px rgba(15,23,42,0.06)}
+    header{background:var(--primary);color:#fff;padding:1rem;border-radius:10px 10px 0 0;text-align:center}
+    h1{margin:0;font-size:1.15rem}
+    .split{display:grid;grid-template-columns:1fr 420px;gap:1rem}
+    @media(max-width:940px){ .split{grid-template-columns:1fr} }
+
+    /* login */
+    .login-box{max-width:420px;margin:2rem auto;padding:1.2rem;border-radius:10px}
+    label{display:block;margin-top:0.65rem;font-weight:600;color:var(--muted)}
+    input[type="text"], input[type="password"], input[type="date"], select, textarea{
+      width:100%;padding:0.6rem;border:1px solid #e2e8f0;border-radius:8px;margin-top:0.35rem;
+    }
+    textarea{min-height:110px;resize:vertical}
+    button.btn{margin-top:1rem;padding:0.7rem 1rem;border:0;border-radius:8px;background:var(--primary);color:#fff;font-weight:700;cursor:pointer}
+    .muted{color:var(--muted);font-size:0.9rem;margin-top:0.5rem}
+    .row{display:flex;gap:0.6rem}
+    .col{flex:1}
+    .small{font-size:0.85rem;color:var(--muted)}
+    .status{margin-top:0.7rem;font-weight:600}
+
+    /* form styles */
+    .tabs{display:flex;gap:0.5rem;margin-bottom:0.8rem}
+    .tab{padding:0.45rem 0.8rem;border-radius:8px;background:#eef2f7;cursor:pointer;font-weight:700;color:#123}
+    .tab.active{background:var(--primary);color:#fff}
+    .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem}
+    .gps-row{display:flex;gap:0.5rem;align-items:center}
+    .gps-row input{flex:1}
+    footer{margin-top:1rem;font-size:0.85rem;color:var(--muted);text-align:center}
+  </style>
+</head>
+<body>
+  <div class="center">
+
+    <!-- LOGIN (AUTENTICAÇÃO DESATIVADA) -->
+    <div class="card login-box" id="loginCard">
+      <header><h1>Equipe — Patrulha Maria da Penha</h1></header>
+
+      <div style="padding:0.8rem">
+        <label>Usuário</label>
+        <input type="text" id="loginUser" placeholder="Seu usuário (ex: sgt.joseanne)">
+
+        <label>Senha</label>
+        <input type="password" id="loginPass" placeholder="Senha (desativada por enquanto)">
+
+        <p class="small">Observação: para este protótipo a autenticação está desativada — basta clicar em "Entrar" para acessar o formulário.</p>
+
+        <button class="btn" id="btnLogin">Entrar</button>
+        <p class="status" id="loginStatus" style="color:green;display:none">Acessando...</p>
+      </div>
+    </div>
+
+    <!-- APLICAÇÃO (inicialmente oculta, aparece após 'Entrar') -->
+    <div id="app" style="display:none">
+      <div class="card">
+        <header><h1>Formulário de Envio — Patrulha (Equipe)</h1></header>
+
+        <div style="padding:1rem">
+          <div class="tabs" role="tablist" aria-label="Tipo de documento">
+            <div class="tab active" data-type="Ficha" id="tabFicha">Ficha de Fiscalização</div>
+            <div class="tab" data-type="Relatorio" id="tabRelatorio">Relatório de Equipe</div>
+          </div>
+
+          <form id="teamForm">
+            <input type="hidden" name="docType" id="docType" value="Ficha de Fiscalização">
+
+            <div class="form-grid">
+              <!-- Dados da vítima / relatório -->
+              <div>
+                <label>Nome da Vítima <span class="small">(obrigatório na Ficha)</span></label>
+                <input type="text" name="victimName" id="victimName" placeholder="Nome completo">
+              </div>
+
+              <div>
+                <label>MPU / Processo nº</label>
+                <input type="text" name="mpuNumber" id="mpuNumber" placeholder="6017773-21.2025.8.03.0001">
+              </div>
+
+              <div>
+                <label>Endereço / Bairro</label>
+                <input type="text" name="victimAddress" id="victimAddress" placeholder="Rua, nº, bairro">
+              </div>
+
+              <div>
+                <label>Contato (telefone/whatsapp)</label>
+                <input type="text" name="victimContact" id="victimContact" placeholder="(96) 9XXXX-XXXX">
+              </div>
+
+              <div>
+                <label>Nome do Agressor</label>
+                <input type="text" name="aggressorName" id="aggressorName" placeholder="Nome completo">
+              </div>
+
+              <div>
+                <label>Tipo de Violência</label>
+                <select name="violenceType" id="violenceType">
+                  <option value="">— Selecionar —</option>
+                  <option>Física</option>
+                  <option>Psicológica</option>
+                  <option>Patrimonial</option>
+                  <option>Sexual</option>
+                </select>
+              </div>
+
+              <div>
+                <label>Batalhão (quem realiza)</label>
+                <select name="bpm" id="bpm">
+                  <option value="">— Selecionar —</option>
+                  <option>1º BPM</option>
+                  <option>2º BPM</option>
+                  <option>4º BPM</option>
+                  <option>6º BPM</option>
+                </select>
+              </div>
+
+              <div>
+                <label>Equipe / Comandante</label>
+                <input type="text" name="teamCommander" id="teamCommander" placeholder="Ex: 1º Sgt Joseanne">
+              </div>
+
+              <div>
+                <label>Data da Visita</label>
+                <input type="date" name="visitDate" id="visitDate">
+              </div>
+
+              <div>
+                <label>Horário</label>
+                <input type="text" name="visitTime" id="visitTime" placeholder="HH:MM (opcional)">
+              </div>
+            </div>
+
+            <label style="margin-top:0.9rem">Resumo do Caso / Relato da Visita <span class="small">(obrigatório na Ficha)</span></label>
+            <textarea name="reportText" id="reportText" placeholder="Descreva: orientação, testemunhas, medidas tomadas, comportamento do agressor..."></textarea>
+
+            <label style="margin-top:0.8rem">Apensos / Processos relacionados</label>
+            <input type="text" name="relatedProcesses" id="relatedProcesses" placeholder="Nºs de processo MPU, medidas protetivas">
+
+            <div style="margin-top:0.6rem" class="gps-row">
+              <div style="flex:1">
+                <label>Localização (Latitude)</label>
+                <input type="text" name="latitude" id="latitude" readonly placeholder="Latitude">
+              </div>
+              <div style="flex:1">
+                <label>Localização (Longitude)</label>
+                <input type="text" name="longitude" id="longitude" readonly placeholder="Longitude">
+              </div>
+              <div style="width:156px">
+                <label style="visibility:hidden">bot</label>
+                <button type="button" class="btn" id="btnGeo" style="width:100%">📍 Capturar</button>
+              </div>
+            </div>
+
+            <label style="margin-top:0.6rem">Observações / Encaminhamentos</label>
+            <input type="text" name="observations" id="observations" placeholder="Encaminhamentos à coordenação / escola / saúde etc">
+
+            <label style="margin-top:0.6rem">Assinatura (Nome e Posto)</label>
+            <input type="text" name="signature" id="signature" placeholder="Nome — Posto">
+
+            <div style="display:flex;gap:0.6rem;margin-top:0.8rem">
+              <button type="button" class="btn" id="btnSubmit">Enviar relatório</button>
+              <button type="button" class="btn" id="btnReset" style="background:#e2e8f0;color:#111">Limpar</button>
+            </div>
+
+            <p class="muted" style="margin-top:0.6rem">
+              Observação: uploads de arquivos (fotos/documentos) não estão habilitados por este protótipo.
+              Caso necessário, inclua links do Google Drive no campo Observações ou solicite ativação do upload no Apps Script.
+            </p>
+
+            <p id="formStatus" class="status" style="display:none"></p>
+          </form>
+        </div>
+      </div>
+
+      <footer>
+        <small>Uso restrito às equipes: 1º BPM, 2º BPM, 4º BPM e 6º BPM — Sistema de protótipo</small>
+      </footer>
+    </div>
+  </div>
+
+<script>
+/* ==========================
+   CONFIGURAÇÃO: substitua pelo endpoint do seu Apps Script (deploy Web App)
+   ========================== */
+const SCRIPT_URL = 'https://script.google.com/macros/s/SEU_DEPLOY_ID_AQUI/exec';
+
+/* --------- Login (autenticação desativada) --------- */
+document.getElementById('btnLogin').addEventListener('click', () => {
+  // A autenticação está desativada — apenas abre o app ao clicar
+  document.getElementById('loginStatus').style.display = 'inline';
+  setTimeout(() => {
+    document.getElementById('loginCard').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('loginStatus').style.display = 'none';
+    // preencher data/hora atual por conveniência
+    const today = new Date();
+    document.getElementById('visitDate').value = today.toISOString().slice(0,10);
+    document.getElementById('visitTime').value = today.toTimeString().slice(0,5);
+  }, 600); // pequena animação
+});
+
+/* --------- Tabs (Ficha / Relatório) --------- */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const type = tab.dataset.type;
+    document.getElementById('docType').value = (type === 'Ficha') ? 'Ficha de Fiscalização' : 'Relatório de Equipe';
+    // ajustar obrigatoriedade: quando for Relatório, o campo vítima pode ser opcional
+    const victim = document.getElementById('victimName');
+    const report = document.getElementById('reportText');
+    if(type === 'Ficha'){
+      victim.required = true;
+      report.required = true;
+    } else {
+      victim.required = false;
+      report.required = true;
+    }
+  });
+});
+
+/* --------- Geolocalização --------- */
+document.getElementById('btnGeo').addEventListener('click', () => {
+  const latInput = document.getElementById('latitude');
+  const lonInput = document.getElementById('longitude');
+
+  if(!navigator.geolocation){
+    alert('Geolocalização não suportada neste dispositivo');
+    return;
+  }
+  document.getElementById('btnGeo').textContent = 'Buscando...';
+  navigator.geolocation.getCurrentPosition(pos => {
+    latInput.value = pos.coords.latitude.toFixed(6);
+    lonInput.value = pos.coords.longitude.toFixed(6);
+    document.getElementById('btnGeo').textContent = '📍 Capturar';
+  }, err => {
+    alert('Erro ao capturar localização: ' + err.message);
+    document.getElementById('btnGeo').textContent = '📍 Capturar';
+  }, {enableHighAccuracy:true, timeout:10000});
+});
+
+/* --------- Envio do formulário (POST JSON para Apps Script) --------- */
+document.getElementById('btnSubmit').addEventListener('click', async () => {
+  const status = document.getElementById('formStatus');
+  status.style.display = 'block';
+  status.style.color = 'black';
+  status.textContent = 'Validando...';
+
+  const form = document.getElementById('teamForm');
+  // simples validação: campos obrigatórios conforme tipo
+  const docType = document.getElementById('docType').value;
+  const victimName = document.getElementById('victimName').value.trim();
+  const reportText = document.getElementById('reportText').value.trim();
+  if(docType.includes('Ficha') && victimName === ''){
+    status.style.color = 'crimson';
+    status.textContent = 'Erro: Nome da vítima é obrigatório para Ficha.';
+    return;
+  }
+  if(reportText === ''){
+    status.style.color = 'crimson';
+    status.textContent = 'Erro: Relato/Resumo do caso é obrigatório.';
+    return;
+  }
+
+  // montar payload
+  const payload = {};
+  new FormData(form).forEach((v,k) => payload[k] = v);
+  payload.submittedAt = new Date().toISOString();
+  // adicionar meta da equipe (opcional)
+  payload.device = navigator.userAgent || '';
+
+  status.style.color = 'black';
+  status.textContent = 'Enviando...';
+
+  try {
+    // Envia para Apps Script (Content-Type application/json)
+    const resp = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const resJson = await resp.json();
+    if(resp.ok && resJson.result === 'success'){
+      status.style.color = 'green';
+      status.textContent = 'Relatório enviado com sucesso.';
+      form.reset();
+      // reset docType to current tab (default Ficha)
+      document.getElementById('docType').value = document.querySelector('.tab.active').dataset.type === 'Ficha' ? 'Ficha de Fiscalização' : 'Relatório de Equipe';
+      // opcional: recapturar data/hora
+      const t = new Date();
+      document.getElementById('visitDate').value = t.toISOString().slice(0,10);
+      document.getElementById('visitTime').value = t.toTimeString().slice(0,5);
+    } else {
+      // se Apps Script responder com erro
+      status.style.color = 'crimson';
+      status.textContent = 'Falha ao enviar: ' + (resJson.message || 'resposta inesperada do servidor');
+    }
+  } catch (err) {
+    status.style.color = 'crimson';
+    status.textContent = 'Erro de rede: ' + err.message;
+  }
+});
+
+/* --------- Reset do formulário --------- */
+document.getElementById('btnReset').addEventListener('click', () => {
+  if(confirm('Limpar todos os campos do formulário?')){
+    document.getElementById('teamForm').reset();
+    document.getElementById('latitude').value = '';
+    document.getElementById('longitude').value = '';
+    document.getElementById('formStatus').style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>
